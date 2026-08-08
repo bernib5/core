@@ -164,13 +164,6 @@
         'type': 'knx_section_flat',
       }),
       dict({
-        'ga_path': 'ga_send',
-        'name': 'reset_data',
-        'optional': True,
-        'required': False,
-        'type': 'knx_payload',
-      }),
-      dict({
         'name': 'reset_after',
         'optional': True,
         'required': False,
@@ -184,6 +177,13 @@
           }),
         }),
         'type': 'ha_selector',
+      }),
+      dict({
+        'ga_path': 'ga_send',
+        'name': 'reset_data',
+        'optional': True,
+        'required': False,
+        'type': 'knx_payload',
       }),
     ]),
     'success': True,
