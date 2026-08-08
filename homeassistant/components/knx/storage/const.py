@@ -21,7 +21,6 @@ CONF_GA_STEP: Final = "ga_step"
 
 # Button
 CONF_GA_SEND: Final = "ga_send"
-CONF_RESET_ENABLED: Final = "reset_enabled"
 CONF_RESET_DATA: Final = "reset_data"
 
 # Climate

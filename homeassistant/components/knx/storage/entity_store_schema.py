@@ -112,7 +112,6 @@ from .const import (
     CONF_GA_WHITE_SWITCH,
     CONF_IGNORE_AUTO_MODE,
     CONF_RESET_DATA,
-    CONF_RESET_ENABLED,
     CONF_SPEED,
     CONF_TARGET_TEMPERATURE,
 )
@@ -211,15 +210,12 @@ def _validate_button_data(config: dict, data_key: str) -> None:
 def _button_data_sub_validator(config: dict) -> dict:
     """Validate button and optional reset data matching configured DPT."""
     _validate_button_data(config, CONF_DATA)
-    if config.get(CONF_RESET_ENABLED):
+    if CONF_RESET_AFTER in config:
         if CONF_RESET_DATA not in config:
             raise vol.Invalid("Reset data required", path=([CONF_RESET_DATA]))
-        if CONF_RESET_AFTER not in config:
-            raise vol.Invalid("Reset delay required", path=([CONF_RESET_AFTER]))
         _validate_button_data(config, CONF_RESET_DATA)
     else:
         config.pop(CONF_RESET_DATA, None)
-        config.pop(CONF_RESET_AFTER, None)
     return config
 
 
@@ -235,13 +231,12 @@ BUTTON_KNX_SCHEMA = AllSerializeFirst(
             ),
             vol.Required(CONF_DATA): KnxPayloadSelector(ga_path=CONF_GA_SEND),
             "section_pulse": KNXSectionFlat(collapsible=True),
-            vol.Optional(CONF_RESET_ENABLED, default=False): selector.BooleanSelector(),
-            vol.Optional(CONF_RESET_DATA): KnxPayloadSelector(ga_path=CONF_GA_SEND),
             vol.Optional(CONF_RESET_AFTER): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=0, max=600, step=0.1, unit_of_measurement="s"
                 )
             ),
+            vol.Optional(CONF_RESET_DATA): KnxPayloadSelector(ga_path=CONF_GA_SEND),
         },
     ),
     _button_data_sub_validator,

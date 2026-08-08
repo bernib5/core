@@ -35,7 +35,6 @@ from .storage.const import (
     CONF_ENTITY,
     CONF_GA_SEND,
     CONF_RESET_DATA,
-    CONF_RESET_ENABLED,
 )
 from .storage.util import ConfigExtractor
 
@@ -136,10 +135,11 @@ class KnxUiButton(_KnxButton, KnxUiEntity):
             button_data=button_data,
         )
 
-        if knx_conf.get(CONF_RESET_ENABLED) and (
+        reset_after = knx_conf.get(CONF_RESET_AFTER)
+        if reset_after is not None and (
             reset_data := knx_conf.get(CONF_RESET_DATA)
         ):
-            self._reset_after = knx_conf.get(CONF_RESET_AFTER)
+            self._reset_after = reset_after
             self._reset_device, self._reset_payload = _ui_button_writer(
                 knx_module=knx_module,
                 name=name,
