@@ -1,6 +1,7 @@
 {
   "domain": "knx",
   "name": "KNX",
+  "version": "2026.8.0-pulse",
   "after_dependencies": ["panel_custom"],
   "codeowners": ["@Julius2342", "@farmio", "@marvin-w"],
   "config_flow": true,
