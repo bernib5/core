@@ -193,6 +193,30 @@ async def test_button_ui_create(
     await knx.assert_write("1/1/1", (1,))
 
 
+async def test_button_ui_create_pulse(
+    hass: HomeAssistant,
+    knx: KNXTestKit,
+    create_ui_entity: KnxEntityGenerator,
+) -> None:
+    """Test creating a pulsed button."""
+    await knx.setup_integration()
+    await create_ui_entity(
+        platform=Platform.BUTTON,
+        entity_data={"name": "test"},
+        knx_data={
+            "ga_send": {"write": "1/1/1", "dpt": "1.001"},
+            "data": {"value": "on"},
+            "reset_data": {"value": "off"},
+            "reset_after": 0,
+        },
+    )
+    await hass.services.async_call(
+        "button", "press", {"entity_id": "button.test"}, blocking=True
+    )
+    await knx.assert_write("1/1/1", True)
+    await knx.assert_write("1/1/1", False)
+
+
 async def test_button_ui_load(hass: HomeAssistant, knx: KNXTestKit) -> None:
     """Test loading a button from storage."""
     await knx.setup_integration(config_store_fixture="config_store_button.json")
@@ -216,6 +240,17 @@ async def test_button_ui_load(hass: HomeAssistant, knx: KNXTestKit) -> None:
         "button", "press", {"entity_id": "button.test_typed"}, blocking=True
     )
     await knx.assert_write("1/1/2", True)
+
+    # Pulsed button configuration
+    knx.assert_state(
+        "button.test_pulse",
+        STATE_UNKNOWN,
+    )
+    await hass.services.async_call(
+        "button", "press", {"entity_id": "button.test_pulse"}, blocking=True
+    )
+    await knx.assert_write("1/1/3", True)
+    await knx.assert_write("1/1/3", False)
 
 
 @pytest.mark.parametrize(
@@ -247,6 +282,16 @@ async def test_button_ui_load(hass: HomeAssistant, knx: KNXTestKit) -> None:
         {  # out of bound value for zero-length
             "ga_send": {"write": "1/1/1"},
             "data": {"payload": "0x40", "payload_length": 0},
+        },
+        {  # missing reset delay
+            "ga_send": {"write": "1/1/1", "dpt": "1.001"},
+            "data": {"value": "on"},
+            "reset_data": {"value": "off"},
+        },
+        {  # missing reset data
+            "ga_send": {"write": "1/1/1", "dpt": "1.001"},
+            "data": {"value": "on"},
+            "reset_after": 0.5,
         },
     ],
 )

@@ -1,5 +1,6 @@
 """Support for KNX button entities."""
 
+import asyncio
 from typing import Any, override
 
 from xknx.devices import ExposeSensor as XknxExposeSensor, RawValue as XknxRawValue
@@ -14,7 +15,14 @@ from homeassistant.helpers.entity_platform import (
 )
 from homeassistant.helpers.typing import ConfigType
 
-from .const import CONF_PAYLOAD_LENGTH, CONF_VALUE, DOMAIN, KNX_ADDRESS, KNX_MODULE_KEY
+from .const import (
+    CONF_PAYLOAD_LENGTH,
+    CONF_RESET_AFTER,
+    CONF_VALUE,
+    DOMAIN,
+    KNX_ADDRESS,
+    KNX_MODULE_KEY,
+)
 from .entity import (
     KnxUiEntity,
     KnxUiEntityPlatformController,
@@ -22,7 +30,7 @@ from .entity import (
     build_yaml_unique_id,
 )
 from .knx_module import KNXModule
-from .storage.const import CONF_DATA, CONF_ENTITY, CONF_GA_SEND
+from .storage.const import CONF_DATA, CONF_ENTITY, CONF_GA_SEND, CONF_RESET_DATA
 from .storage.util import ConfigExtractor
 
 
@@ -63,11 +71,17 @@ class _KnxButton(ButtonEntity):
 
     _device: XknxRawValue | XknxExposeSensor
     _payload: Any
+    _reset_after: float | None = None
+    _reset_device: XknxRawValue | XknxExposeSensor | None = None
+    _reset_payload: Any = None
 
     @override
     async def async_press(self) -> None:
         """Press the button."""
         await self._device.set(self._payload)
+        if self._reset_device is not None and self._reset_after is not None:
+            await asyncio.sleep(self._reset_after)
+            await self._reset_device.set(self._reset_payload)
 
 
 class KnxYamlButton(_KnxButton, KnxYamlEntity):
@@ -105,23 +119,25 @@ class KnxUiButton(_KnxButton, KnxUiEntity):
         """Initialize a KNX button."""
         knx_conf = ConfigExtractor(config[DOMAIN])
         button_data = knx_conf.get(CONF_DATA)
-        if CONF_PAYLOAD in button_data and CONF_PAYLOAD_LENGTH in button_data:
-            self._payload = int(button_data[CONF_PAYLOAD], 16)
-            self._device = XknxRawValue(
-                xknx=knx_module.xknx,
-                name=config[CONF_ENTITY][CONF_NAME],
-                payload_length=button_data[CONF_PAYLOAD_LENGTH],
-                group_address=knx_conf.get_write(CONF_GA_SEND),
-            )
-        else:
-            dpt_string = knx_conf.get_dpt(CONF_GA_SEND)
-            self._payload = button_data[CONF_VALUE]
-            self._device = XknxExposeSensor(
-                xknx=knx_module.xknx,
-                name=config[CONF_ENTITY][CONF_NAME],
-                value_type=dpt_string,
-                group_address=knx_conf.get_write(CONF_GA_SEND),
-                respond_to_read=False,
+        name = config[CONF_ENTITY][CONF_NAME]
+        group_address = knx_conf.get_write(CONF_GA_SEND)
+        dpt_string = knx_conf.get_dpt(CONF_GA_SEND)
+        self._device, self._payload = _ui_button_writer(
+            knx_module=knx_module,
+            name=name,
+            group_address=group_address,
+            dpt_string=dpt_string,
+            button_data=button_data,
+        )
+
+        if reset_data := knx_conf.get(CONF_RESET_DATA):
+            self._reset_after = knx_conf.get(CONF_RESET_AFTER)
+            self._reset_device, self._reset_payload = _ui_button_writer(
+                knx_module=knx_module,
+                name=name,
+                group_address=group_address,
+                dpt_string=dpt_string,
+                button_data=reset_data,
             )
 
         super().__init__(
@@ -129,3 +145,34 @@ class KnxUiButton(_KnxButton, KnxUiEntity):
             unique_id=unique_id,
             entity_config=config[CONF_ENTITY],
         )
+
+
+def _ui_button_writer(
+    knx_module: KNXModule,
+    name: str,
+    group_address: str,
+    dpt_string: str | None,
+    button_data: dict[str, Any],
+) -> tuple[XknxRawValue | XknxExposeSensor, Any]:
+    """Return an XKNX device and payload for a UI-configured button write."""
+    if CONF_PAYLOAD in button_data and CONF_PAYLOAD_LENGTH in button_data:
+        return (
+            XknxRawValue(
+                xknx=knx_module.xknx,
+                name=name,
+                payload_length=button_data[CONF_PAYLOAD_LENGTH],
+                group_address=group_address,
+            ),
+            int(button_data[CONF_PAYLOAD], 16),
+        )
+
+    return (
+        XknxExposeSensor(
+            xknx=knx_module.xknx,
+            name=name,
+            value_type=dpt_string,
+            group_address=group_address,
+            respond_to_read=False,
+        ),
+        button_data[CONF_VALUE],
+    )
